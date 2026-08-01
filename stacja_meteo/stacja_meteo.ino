@@ -458,7 +458,7 @@ void updateWeatherFromAPI() {
   http.end();
 
   // STOGI (lat=54.36, lon=18.72)
-  http.begin("https://api.open-meteo.com/v1/forecast?latitude=" + String(home_lat) + "&longitude=" + String(home_lon) + "&current=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FWarsaw");
+  http.begin("https://api.open-meteo.com/v1/forecast?latitude=" + String(second_lat) + "&longitude=" + String(second_lon) + "&current=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FWarsaw");
   if (http.GET() > 0) {
     JsonDocument doc;
     if (!deserializeJson(doc, http.getString())) {
@@ -698,13 +698,15 @@ void drawDashboard()
       display.setFont(&FreeSansBold18pt7b);
       display.setCursor(colX, wy + labelToValueGap);
       if (data.valid) {
-        snprintf(valBuf, sizeof(valBuf), "%.0f", data.windSpeed);
+        float windVal = convertWind(data.windSpeed);
+        snprintf(valBuf, sizeof(valBuf), "%.0f", windVal);
         display.print(valBuf);
         int16_t x1, y1; uint16_t w1, h1;
         display.getTextBounds(valBuf, colX, wy + labelToValueGap, &x1, &y1, &w1, &h1);
         const char* dirText = getWindDirectionText(data.windDirectionDeg);
         char unitAndDir[16];
-        snprintf(unitAndDir, sizeof(unitAndDir), "km/h (%s)", dirText);
+        const char* unit = (windUnit == 1 ? "kt" : "km/h");
+        snprintf(unitAndDir, sizeof(unitAndDir), "%s (%s)", unit, dirText);
         display.setFont(&FreeSans9pt7b);
         display.setCursor(colX + w1 + 4, wy + labelToValueGap);
         display.print(unitAndDir);
@@ -719,16 +721,19 @@ void drawDashboard()
       
       display.setFont(&FreeSansBold18pt7b);
       display.setCursor(colX, wy + labelToValueGap);
+      const char* unit = (windUnit == 1 ? "kt" : "km/h");
+
       if (data.valid) {
-        snprintf(valBuf, sizeof(valBuf), "%.0f", data.windGusts);
+        float gustVal = convertWind(data.windGusts);
+        snprintf(valBuf, sizeof(valBuf), "%.0f", gustVal);
         display.print(valBuf);
         int16_t x1, y1; uint16_t w1, h1;
         display.getTextBounds(valBuf, colX, wy + labelToValueGap, &x1, &y1, &w1, &h1);
         display.setFont(&FreeSans9pt7b);
         display.setCursor(colX + w1 + 4, wy + labelToValueGap);
-        display.print("km/h");
+        display.print(unit);
       } else {
-        display.print("-- km/h");
+        display.print("--");
       }
     };
 
@@ -881,7 +886,10 @@ void drawForecastScreen(const char* titleText, DailyForecast &forecast)
       char windBuf[32];
       if (forecast.valid) {
         const char* dirText = getWindDirectionText(forecast.windDirectionMaxDeg[i]);
-        snprintf(windBuf, sizeof(windBuf), "%.0f km/h (%s)", forecast.windSpeedMax[i], dirText);
+        float windVal = convertWind(forecast.windSpeedMax[i]);
+        const char* unit = (windUnit == 1 ? "kt" : "km/h");
+        snprintf(windBuf, sizeof(windBuf), "%.0f %s (%s)", windVal, unit, dirText);
+
       } else {
         snprintf(windBuf, sizeof(windBuf), "-- km/h");
       }
@@ -902,4 +910,11 @@ void drawForecastScreen(const char* titleText, DailyForecast &forecast)
     display.print(footerBuf);
 
   } while (display.nextPage());
+}
+
+float convertWind(float kmh) {
+    if (windUnit == 1) {
+        return kmh / 1.852;   // węzły
+    }
+    return kmh;               // km/h
 }
