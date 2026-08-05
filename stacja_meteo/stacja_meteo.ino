@@ -135,7 +135,6 @@ DailyForecast forecastSecond;
 float internalTemp = 0.0;
 int internalHumidity = 0;
 bool sht4xValid = false;
-uint8_t sht4xAddress = 0x44;
 uint16_t sht4xLastError = 0;
 
 bool connectWiFi();
@@ -155,8 +154,12 @@ void updateClockAndDateOnScreen();
 void setup()
 {
   Serial.begin(115200);
-  delay(500);
+  unsigned long t0 = millis();
+  while (!Serial && (millis() - t0 < 5000)) {
+    delay(10);
+  }
   Serial.println(F("[E1001] Start: Optimized power mode active"));
+  delay(100);
 
   // Obniżenie taktowania procesora do 80 MHz dla oszczędności energii
   setCpuFrequencyMhz(80);
@@ -296,6 +299,7 @@ void loop()
 }
 
 bool initSht4x() {
+  uint8_t sht4xAddress = 0x44;
   const uint8_t addrs[2] = {0x44, 0x45};
 
   for (int i = 0; i < 2; i++) {
