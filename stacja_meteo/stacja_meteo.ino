@@ -271,6 +271,7 @@ void loop()
       drawDashboard();
     }
   }
+  delay(10)
 }
 
 void readInternalSensor() {
