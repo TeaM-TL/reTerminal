@@ -135,6 +135,8 @@ DailyForecast forecastSecond;
 float internalTemp = 0.0;
 int internalHumidity = 0;
 bool sht4xValid = false;
+uint8_t sht4xAddress = 0x44;
+uint16_t sht4xLastError = 0;
 
 bool connectWiFi();
 void disconnectWiFi();
@@ -159,7 +161,7 @@ void setup()
   setCpuFrequencyMhz(80);
 
   Wire.begin(SHT4X_SDA_PIN, SHT4X_SCL_PIN);
-  sht4x.begin(Wire, 0x44);
+  sht4x.begin(Wire, sht4xAddress);
   
   readInternalSensor();
 
@@ -290,20 +292,28 @@ void loop()
       drawDashboard();
     }
   }
-  delay(1000);
+  delay(100);
 }
 
 void readInternalSensor() {
-  float temperature = 0.0;
-  float humidity = 0.0;
-  uint16_t error = sht4x.measureHighPrecision(temperature, humidity);
-  if (error == 0) {
-    internalTemp = temperature;
-    internalHumidity = (int)(humidity + 0.5);
-    sht4xValid = true;
-  } else {
-    sht4xValid = false;
+  float temperature = 0.0f;
+  float humidity = 0.0f;
+  uint16_t error = 0xFFFF;
+
+  // 3 próby
+  for (int i = 0; i < 3; i++) {
+    error = sht4x.measureHighPrecision(temperature, humidity);
+    if (error == 0) {
+      internalTemp = temperature;
+      internalHumidity = (int)(humidity + 0.5);
+      sht4xValid = true;
+      return;
+    }
+    delay(20);
   }
+  sht4xLastError = error;
+  sht4xValid = false;
+  Serial.printf("[SHT4x] read failed err=%u\n", error);
 }
 
 void readBatteryLevel() {
