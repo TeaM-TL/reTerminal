@@ -335,8 +335,11 @@ void readInternalSensor() {
   }
 
   // Reinit after error
-  initSht4x();
   sht4xLastError = error;
+  if (initSht4x()) {
+    // initSht4x set temperature and humindity, ans valid=true
+    return;
+  }
   sht4xValid = false;
   Serial.printf("[SHT4x] read failed err=%u\n", error);
 }
