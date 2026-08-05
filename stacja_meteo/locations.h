@@ -14,4 +14,8 @@ const char* second_lat = "54.62";
 const char* second_lon = "18.15";
 const char* titleSecond = "Gdansk Stogi";
 
+// ===== Offset TimeZone =====
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = 3600;
+
 #endif

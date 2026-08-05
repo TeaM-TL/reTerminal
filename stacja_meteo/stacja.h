@@ -11,4 +11,7 @@ const unsigned long batteryRefreshPeriod = 600000UL; // 10 min
 // ==== wind unit ====
 int windUnit = 1;   // 0 = km/h, 1 = knot
 
+// ===== NTP servers =====
+const char* ntpServer = "pl.pool.ntp.org";
+
 #endif

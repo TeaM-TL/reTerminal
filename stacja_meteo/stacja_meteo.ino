@@ -38,11 +38,6 @@
 #include "locations.h"
 
 
-// ===== Konfiguracja NTP =====
-const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 3600;
-const int   daylightOffset_sec = 3600;
-
 // ===== Pin mapping dla reTerminal E1001 =====
 #define EPD_SCK_PIN   7
 #define EPD_MOSI_PIN  9
@@ -383,9 +378,9 @@ void updateBuzzerAndBatteryStatusOnScreen() {
     display.setFont(&FreeSans9pt7b);
     display.setCursor(35, 252);
     display.print("Buzzer 15min:");
-    display.setFont(&FreeSansBold12pt7b);
+    display.setFont(&FreeSans9pt7b);
     display.setCursor(35, 277);
-    display.print(buzzerActive ? "AKTYWNY" : "WYLACZONY");
+    display.print(buzzerActive ? "Aktywny" : "Wylaczony");
 
     display.setFont(&FreeSans9pt7b);
     display.setCursor(35, 298);
