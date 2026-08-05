@@ -10,6 +10,8 @@
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
+
+#include "stacja.h"
 #include "secrets.h"
 #include "locations.h"
 
@@ -229,7 +231,7 @@ void loop()
   }
   lastButtonState = reading;
 
-  if (buzzerActive && (currentMillis - lastBuzzerMillis >= 900000UL)) {
+  if (buzzerActive && (currentMillis - lastBuzzerMillis >= buzzerPeriod)) {
     lastBuzzerMillis = currentMillis;
     tone(BUZZER_PIN, 2000, 150);
   }
@@ -247,21 +249,21 @@ void loop()
     }
   }
 
-  if (currentMillis - lastBatteryMillis >= 300000UL) {
+  if (currentMillis - lastBatteryMillis >= batteryRefreshPeriod) {
     lastBatteryMillis = currentMillis;
     readBatteryLevel();
     updateBuzzerAndBatteryStatusOnScreen();
   }
 
   // Pełne odświeżanie ekranu co 1 godzinę (dla oszczędności energii matrycy)
-  if (currentMillis - lastFullRefreshMillis >= 3600000UL) {
+  if (currentMillis - lastFullRefreshMillis >= fullRefreshPeriod) {
     lastFullRefreshMillis = currentMillis;
     readInternalSensor(); 
     drawDashboard();
   }
 
   // Aktualizacja pogody i czasu co 30 minut (włączanie Wi-Fi -> NTP + pogoda -> rozłączenie)
-  if (currentMillis - lastWeatherMillis >= 1800000UL) {
+  if (currentMillis - lastWeatherMillis >= weatherRefreshPeriod) {
     lastWeatherMillis = currentMillis;
     readInternalSensor();
     if (connectWiFi()) {
@@ -271,7 +273,7 @@ void loop()
       drawDashboard();
     }
   }
-  delay(10);
+  delay(1000);
 }
 
 void readInternalSensor() {
@@ -298,7 +300,7 @@ void readBatteryLevel() {
   if (batteryVoltage > batteryMaxV) batteryMaxV = batteryVoltage;
   if (batteryVoltage < batteryMinV) batteryMinV = batteryVoltage;
 
-  // Kalibracja na podstawie Twojego testu: Max = 4.11V, Min = 2.58V
+  // Kalibracja na podstawie testu: Max = 4.11V, Min = 2.58V
   float vMax = 4.11;
   float vMin = 2.58;
   

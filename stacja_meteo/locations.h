@@ -14,6 +14,4 @@ const char* second_lat = "54.62";
 const char* second_lon = "18.15";
 const char* titleSecond = "Gdansk Stogi";
 
-// ==== wind unit ====
-int windUnit = 1;   // 0 = km/h, 1 = knot
 #endif
