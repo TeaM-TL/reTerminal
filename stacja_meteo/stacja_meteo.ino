@@ -142,6 +142,7 @@ bool connectWiFi();
 void disconnectWiFi();
 void syncTimeNTP();
 void updateWeatherFromAPI();
+bool initSht4x();
 void readInternalSensor();
 void readBatteryLevel();
 const char* getWindDirectionText(int degrees);
@@ -161,8 +162,7 @@ void setup()
   setCpuFrequencyMhz(80);
 
   Wire.begin(SHT4X_SDA_PIN, SHT4X_SCL_PIN);
-  sht4x.begin(Wire, sht4xAddress);
-  
+  initSht4x();
   readInternalSensor();
 
   pinMode(BUZZER_PIN, OUTPUT);
@@ -295,6 +295,28 @@ void loop()
   delay(100);
 }
 
+bool initSht4x() {
+  const uint8_t addrs[2] = {0x44, 0x45};
+
+  for (int i = 0; i < 2; i++) {
+    sht4xAddress = addrs[i];
+    sht4x.begin(Wire, sht4xAddress);
+
+    float temperature = 0.0f, humidity = 0.0f;
+    uint16_t error = sht4x.measureHighPrecision(temperature, humidity);
+    if (error == 0) {
+      sht4xValid = true;
+      internalTemp = temperature;
+      internalHumidity = (int)(humidity + 0.5f);
+      Serial.printf("[SHT4x] init OK addr=0x%02X\n", sht4xAddress);
+      return true;
+    }
+    Serial.printf("[SHT4x] init FAIL addr=0x%02X error=%u\n", sht4xAddress, error);
+  }
+  sht4xValid = false;
+  return false;
+}
+
 void readInternalSensor() {
   float temperature = 0.0f;
   float humidity = 0.0f;
@@ -311,6 +333,9 @@ void readInternalSensor() {
     }
     delay(20);
   }
+
+  // Reinit after error
+  initSht4x();
   sht4xLastError = error;
   sht4xValid = false;
   Serial.printf("[SHT4x] read failed err=%u\n", error);
@@ -394,7 +419,7 @@ void updateBuzzerAndBatteryStatusOnScreen() {
 
     display.setFont(&FreeSans9pt7b);
     display.setCursor(35, 298);
-    display.print("Bateria (Akt / Min / Max):");
+    display.print("Bateria:");
     char batBuf[32];
     snprintf(batBuf, sizeof(batBuf), "%d%% (%.2fV)", batteryPercentage, batteryVoltage);
     display.setFont(&FreeSansBold12pt7b);
