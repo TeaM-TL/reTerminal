@@ -51,7 +51,7 @@
 // Magistrala I2C dla wbudowanego czujnika SHT4x
 #define SHT4X_SDA_PIN 19
 #define SHT4X_SCL_PIN 20
-#define RTC_I2C_ADDR 0x51
+#define RTC_I2C_ADDR 0x68
 
 // ===== Peryferia =====
 const int BUZZER_PIN         = 45;   // Buzzer na GPIO45
@@ -589,7 +589,7 @@ bool syncTimeFromRtc() {
   hours = t.tm_hour;
   minutes = t.tm_min;
   snprintf(lastSyncTimeStr, sizeof(lastSyncTimeStr), "%02d:%02d", hours, minutes);
-  snprintf(currentDateStr, sizeof(currentDateStr), "%02d.%02d.%02d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+  snprintf(currentDateStr, sizeof(currentDateStr), "%02d.%02d.%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
   return true;
 }
 
@@ -618,8 +618,8 @@ bool updateRTCFromSystemTime() {
   Wire.write(sec & 0x7F);
   Wire.write(min & 0x7F);
   Wire.write(hour & 0x3F);
-  Wire.write(wday & 0x3F);
-  Wire.write(mday & 0x07);
+  Wire.write(mday & 0x3F);
+  Wire.write(wday & 0x07);
   Wire.write(month);
   Wire.write(year);
 
