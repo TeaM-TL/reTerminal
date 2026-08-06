@@ -464,7 +464,7 @@ bool connectWiFi() {
 
 void disconnectWiFi() {
   WiFi.disconnect(true, false);
-  delay(80)
+  delay(80);
   WiFi.mode(WIFI_OFF);
 }
 
@@ -548,8 +548,8 @@ bool syncTimeFromRtc() {
   uint8_t secReg = Wire.read();
   uint8_t minReg = Wire.read();
   uint8_t hourReg = Wire.read();
-  Wire.read(); //day of week - noy used
   uint8_t dayReg = Wire.read();
+  Wire.read(); //day of week - noy used
   uint8_t monthReg = Wire.read();
   uint8_t yearReg = Wire.read();
 
@@ -618,10 +618,12 @@ bool updateRTCFromSystemTime() {
   Wire.write(sec & 0x7F);
   Wire.write(min & 0x7F);
   Wire.write(hour & 0x3F);
-  Wire.write(wday & 0x07);
-  Wire.write(mday & 0x3F);
+  Wire.write(wday & 0x3F);
+  Wire.write(mday & 0x07);
   Wire.write(month);
   Wire.write(year);
+
+  return (Wire.endTransmission() == 0);
 
 }
 
