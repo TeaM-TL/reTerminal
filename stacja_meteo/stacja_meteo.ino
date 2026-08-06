@@ -81,20 +81,20 @@ char currentDateStr[16]  = "--.--.----";
 
 // System ekranów (0: Główny, 1: Home 7 dni, 2: Stogi 7 dni)
 int currentScreen = 0;
-bool lastScreenBtnState = HIGH;
-unsigned long lastScreenDebounce = 0;
 
 // Zmienne dla trybu ciągłego i obsługi przycisku buzzera
 bool buzzerActive = false;
-bool lastButtonState = HIGH;
-unsigned long lastDebounceTime = 0;
-unsigned long debounceDelay = 50;
 
 unsigned long lastBuzzerMillis = 0;
 unsigned long lastWeatherMillis = 0;
 unsigned long lastClockMillis = 0;
 unsigned long lastFullRefreshMillis = 0;
 unsigned long lastBatteryMillis = 0;
+unsigned long lastScreenButtonEventMillis = 0;
+unsigned long lastBuzzButtonEventMillis = 0;
+
+volatile bool screenButtonInterrupt = false;
+volatile bool buzzButtonInterrupt = false;
 
 int batteryPercentage = 100;
 float batteryVoltage = 0.0;
@@ -159,6 +159,16 @@ void drawDashboard();
 void drawForecastScreen(const char* title, DailyForecast &forecast);
 void updateBuzzerAndBatteryStatusOnScreen();
 void updateClockAndDateOnScreen();
+void onScreenButtonInterrupt();
+void onBuzzButtonInterrupt()
+
+void onScreenButtonInterrupt {
+  screenButtonInterrupt = true;
+}
+
+void onBuzzButtonInterrupt() {
+  buzzButtonInterrupt = true;
+}
 
 uint8_t bcdToDec(uint8_t val) {
   return ((val >> 4) * 10) + (val & 0x0F);
@@ -193,6 +203,12 @@ void setup()
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(BUTTON_BUZZ_PIN, INPUT_PULLUP);
   pinMode(BUTTON_SCREEN_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_BUZZ_PIN), onBuzzButtonInterrupt, FALLING);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_SCREEN_PIN), onScreenButtonInterrupt, FALLING);
+
+  gpio_wakeup_enable((gpio_num_t)BUTTON_BUZZ_PIN, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BUTTON_SCREEN_PIN, GPIO_INTR_LOW_LEVEL);
+
   noTone(BUZZER_PIN);
   digitalWrite(BUZZER_PIN, LOW);
 
@@ -246,46 +262,44 @@ void loop()
 {
   unsigned long currentMillis = millis();
 
-  int screenReading = digitalRead(BUTTON_SCREEN_PIN);
-  if (screenReading != lastScreenBtnState) {
-    lastScreenDebounce = currentMillis;
+  bool handleScreenButton = false;
+  bool handleBuzzButton = false;
+  noInterrupts();
+  if (screenButtonInterrupt) {
+    screenButtonInterrupt = false;
+    handleScreenButton = true;
   }
-  if ((currentMillis - lastScreenDebounce) > debounceDelay) {
-    static int currentScreenState = HIGH;
-    if (screenReading != currentScreenState) {
-      currentScreenState = screenReading;
-      if (screenReading == LOW) {
-        readInternalSensor();
-        currentScreen = (currentScreen + 1) % 3;
-        drawDashboard();
-      }
-    }
+  if (buzzButtonInterrupt) {
+    buzzButtonInterrupt = false;
+    handleBuzzButton = true;
   }
-  lastScreenBtnState = screenReading;
+  interrupts();
 
-  int reading = digitalRead(BUTTON_BUZZ_PIN);
-  if (reading != lastButtonState) {
-    lastDebounceTime = currentMillis;
+if (handleScreenButton && (currentMillis - lastScreenButtonEventMillis > 250)) {
+  lastScreenButtonEventMillis = currentMillis;
+  if (digitalRead(BUTTON_SCREEN_PIN) == LOW) {
+    readInternalSensor();
+    currentScreen = (currentScreen + 1) % 3;
+    drawDashboard();
   }
-  if ((currentMillis - lastDebounceTime) > debounceDelay) {
-    static int currentState = HIGH;
-    if (reading != currentState) {
-      currentState = reading;
-      if (currentState == LOW) {
-        buzzerActive = !buzzerActive;
-        if (buzzerActive) {
-          lastBuzzerMillis = currentMillis;
-        } else {
-          noTone(BUZZER_PIN);
-          digitalWrite(BUZZER_PIN, LOW);
-        }
-        if (currentScreen == 0) {
-          updateBuzzerAndBatteryStatusOnScreen();
-        }
-      }
+}
+
+if(handleBuzzButton && (currentMillis - lastBuzzButtonEventMillis > 250)) {
+  lastBuzzButtonEventMillis = currentMillis;
+  if (digitalRead(BUTTON_BUZZ_PIN) == LOW) {
+    buzzerActive != buzzerActive;
+    if (buzzerActive) {
+      lastBuzzerMillis = currentMillis;
+    } else {
+      noTone(BUZZER_PIN);
+      digitalWrite(BUZZER_PIN, LOW);
+    }
+    if (currentScreen == 0) {
+      updateBuzzerAndBatteryStatusOnScreen();
     }
   }
-  lastButtonState = reading;
+}
+
 
   if (buzzerActive && (currentMillis - lastBuzzerMillis >= buzzerPeriod)) {
     lastBuzzerMillis = currentMillis;
@@ -339,7 +353,8 @@ void loop()
     }
       drawDashboard();
   }
-  esp_sleep_enable_timer_wakeup(100000); // 100 ms
+  esp_sleep_enable_timer_wakeup(10000); // 10 s
+  esp_sleep_enable_gpio_wakeup();
   esp_light_sleep_start();
 }
 
