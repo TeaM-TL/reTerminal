@@ -191,7 +191,7 @@ void setup()
   display.init(0);
 
   Serial.end();
-  esp_log_level_set("*", ESP_LOG_NONE);
+esp_log_level_set("*", ESP_LOG_NONE);
 
   delay(100);
 
@@ -318,10 +318,10 @@ bool initSht4x() {
       sht4xValid = true;
       internalTemp = temperature;
       internalHumidity = (int)(humidity + 0.5f);
-      // Serial.printf("[SHT4x] init OK addr=0x%02X\n", sht4xAddress);
+      Serial.printf("[SHT4x] init OK addr=0x%02X\n", sht4xAddress);
       return true;
     }
-    // Serial.printf("[SHT4x] init FAIL addr=0x%02X error=%u\n", sht4xAddress, error);
+    Serial.printf("[SHT4x] init FAIL addr=0x%02X error=%u\n", sht4xAddress, error);
   }
   sht4xValid = false;
   return false;
@@ -351,7 +351,7 @@ void readInternalSensor() {
     return;
   }
   sht4xValid = false;
-  // Serial.printf("[SHT4x] read failed err=%u\n", error);
+  Serial.printf("[SHT4x] read failed err=%u\n", error);
 }
 
 void readBatteryLevel() {
@@ -378,12 +378,11 @@ void readBatteryLevel() {
 bool connectWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(true);
-  esp_wifi_set_ps(WIFI_PS_MAX_MODEM); // powersave
+  esp_wifi_set_ps(WIFI_PS_MIN_MODEM); // powersave
   WiFi.begin(ssid, password);
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    esp_sleep_enable_timer_wakeup(500000);
-    esp_light_sleep_start();
+    delay(500);
     attempts++;
   }
   return (WiFi.status() == WL_CONNECTED);
