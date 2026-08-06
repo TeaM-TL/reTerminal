@@ -139,10 +139,12 @@ bool sht4xValid = false;
 uint16_t sht4xLastError = 0;
 bool wifiLastSuccess = false;
 bool sensorReadLastSuccess = false;
+unsigned long lastNtpSyncMillis = 0;
+bool ntpEverSynced = false;
 
 bool connectWiFi();
 void disconnectWiFi();
-void syncTimeNTP();
+bool syncTimeNTP();
 void updateWeatherFromAPI();
 bool initSht4x();
 void readInternalSensor();
@@ -202,11 +204,15 @@ esp_log_level_set("*", ESP_LOG_NONE);
   // Pobranie danych przez Wi-Fi i natychmiastowe rozłączenie radia
   if (connectWiFi()) {
     wifiLastSuccess = true;
-    syncTimeNTP();
+    if (syncTimeNTP()) {
+      ntpEverSynced = true;
+      lastNtpSyncMillis = millis();
+    }
     updateWeatherFromAPI();
     disconnectWiFi();
   } else {
     wifiLastSuccess = false;
+    disconnectWiFi();
   }
 
   drawDashboard();
@@ -301,11 +307,17 @@ void loop()
     readInternalSensor();
     if (connectWiFi()) {
       wifiLastSuccess = true;
-      syncTimeNTP();
+      if (!ntpEverSynced || (currentMillis - lastNtpSyncMillis >= ntpRefreshperiod)) {
+        if (syncTimeNTP()) {
+          ntpEverSynced = true;
+          lastNtpSyncMillis = currentMillis;
+        }
+      }
       updateWeatherFromAPI();
       disconnectWiFi();
     } else {
       wifiLastSuccess = false;
+      disconnectWiFi();
     }
       drawDashboard();
   }
@@ -393,16 +405,28 @@ void readBatteryLevel() {
 }
 
 bool connectWiFi() {
+  WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
-  WiFi.setSleep(true);
-  esp_wifi_set_ps(WIFI_PS_MIN_MODEM); // powersave
+  WiFi.disconnect(true, true);
+  delay(100);
+
+
+  WiFi.setSleep(false);
+  esp_wifi_set_ps(WIFI_PS_NONE);
+  
   WiFi.begin(ssid, password);
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     attempts++;
   }
-  return (WiFi.status() == WL_CONNECTED);
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFi.setSleep(true);
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    return true;
+  }
+
 }
 
 void disconnectWiFi() {
@@ -443,7 +467,7 @@ void updateBuzzerAndBatteryStatusOnScreen() {
     
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&FreeSans9pt7b);
-    display.setCursor(35, 265);
+    display.setCursor(35, 270);
     display.print("Buzzer 15min: ");
     display.print(buzzerActive ? "Aktywny" : "Wylaczony");
 
@@ -458,7 +482,7 @@ void updateBuzzerAndBatteryStatusOnScreen() {
   } while (display.nextPage());
 }
 
-void syncTimeNTP() {
+bool syncTimeNTP() {
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
   int retry = 0;
@@ -721,7 +745,7 @@ void drawDashboard()
 
     // Buzzer
     display.setFont(&FreeSans9pt7b);
-    display.setCursor(35, 265);
+    display.setCursor(35, 270);
     display.print("Buzzer 15min: ");
     display.print(buzzerActive ? "Aktywny" : "Wylaczony");
 
