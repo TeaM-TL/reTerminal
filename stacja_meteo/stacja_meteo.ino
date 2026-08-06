@@ -424,35 +424,47 @@ void readBatteryLevel() {
 
 bool connectWiFi() {
   WiFi.persistent(false);
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true, true);
-  delay(100);
 
 
-  WiFi.setSleep(false);
-  esp_wifi_set_ps(WIFI_PS_NONE);
-  
-  WiFi.begin(ssid, password);
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    attempts++;
+  for (int connectAttempt = 0; connectAttempt < 3; connectAttempt++) {
+    WiFi.mode(WIFI_OFF);
+    delay(120);
+
+    WiFi.mode(WIFI_STA);
+    delay(120);
+
+    WiFi.disconnect(false, false);
+    delay(80);
+
+
+    WiFi.setSleep(false);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    
+    WiFi.begin(ssid, password);
+
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+      delay(500);
+      attempts++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      WiFi.setSleep(true);
+      esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+      return true;
+    }
+
+    WiFi.disconnect(true, false);
+    delay(120);
   }
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    WiFi.setSleep(true);
-    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-    return true;
-  }
 
-
-  WiFi.disconnect(true, true);
   WiFi.mode(WIFI_OFF);
   return false;
 }
 
 void disconnectWiFi() {
-  WiFi.disconnect(true);
+  WiFi.disconnect(true, false);
+  delay(80)
   WiFi.mode(WIFI_OFF);
 }
 
