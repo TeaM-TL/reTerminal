@@ -24,6 +24,7 @@
 #include <Wire.h>
 #include <GxEPD2_BW.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <time.h>
@@ -165,6 +166,7 @@ void setup()
   setCpuFrequencyMhz(80);
 
   Wire.begin(SHT4X_SDA_PIN, SHT4X_SCL_PIN);
+  Wire.setClock(100000);
   initSht4x();
   readInternalSensor();
 
