@@ -95,6 +95,8 @@ unsigned long lastBuzzButtonEventMillis = 0;
 
 volatile bool screenButtonInterrupt = false;
 volatile bool buzzButtonInterrupt = false;
+volatile unsigned long screenButtonInterruptMillis = 0;
+volatile unsigned long buzzButtonInterruptMillis = 0;
 
 int batteryPercentage = 100;
 float batteryVoltage = 0.0;
@@ -162,12 +164,14 @@ void updateClockAndDateOnScreen();
 void onScreenButtonInterrupt();
 void onBuzzButtonInterrupt();
 
-void onScreenButtonInterrupt {
+void onScreenButtonInterrupt() {
   screenButtonInterrupt = true;
+  screenButtonInterruptMillis = millis();
 }
 
 void onBuzzButtonInterrupt() {
   buzzButtonInterrupt = true;
+  buzzButtonInterruptMillis = millis();
 }
 
 uint8_t bcdToDec(uint8_t val) {
@@ -261,9 +265,18 @@ esp_log_level_set("*", ESP_LOG_NONE);
 void loop()
 {
   unsigned long currentMillis = millis();
+  esp_sleep_wakeup_cause_t wakeupCause = esp_sleep_get_wakeup_cause();
 
   bool handleScreenButton = false;
   bool handleBuzzButton = false;
+  if (wakeupCause == ESP_SLEEP_WAKEUP_GPIO) {
+    if (digitalRead(BUTTON_SCREEN_PIN) == LOW) {
+      handleScreenButton = true;
+    }
+    if (digitalRead(BUTTON_BUZZ_PIN) == LOW) {
+      handleBuzzButton = true;
+    }
+  }
   noInterrupts();
   if (screenButtonInterrupt) {
     screenButtonInterrupt = false;
@@ -277,26 +290,22 @@ void loop()
 
 if (handleScreenButton && (currentMillis - lastScreenButtonEventMillis > 250)) {
   lastScreenButtonEventMillis = currentMillis;
-  if (digitalRead(BUTTON_SCREEN_PIN) == LOW) {
-    readInternalSensor();
-    currentScreen = (currentScreen + 1) % 3;
-    drawDashboard();
-  }
+  readInternalSensor();
+  currentScreen = (currentScreen + 1) % 3;
+  drawDashboard();
 }
 
 if(handleBuzzButton && (currentMillis - lastBuzzButtonEventMillis > 250)) {
   lastBuzzButtonEventMillis = currentMillis;
-  if (digitalRead(BUTTON_BUZZ_PIN) == LOW) {
-    buzzerActive != buzzerActive;
-    if (buzzerActive) {
-      lastBuzzerMillis = currentMillis;
-    } else {
-      noTone(BUZZER_PIN);
-      digitalWrite(BUZZER_PIN, LOW);
-    }
-    if (currentScreen == 0) {
-      updateBuzzerAndBatteryStatusOnScreen();
-    }
+  buzzerActive = !buzzerActive;
+  if (buzzerActive) {
+    lastBuzzerMillis = currentMillis;
+  } else {
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW);
+  }
+  if (currentScreen == 0) {
+    updateBuzzerAndBatteryStatusOnScreen();
   }
 }
 
@@ -349,7 +358,6 @@ if(handleBuzzButton && (currentMillis - lastBuzzButtonEventMillis > 250)) {
       disconnectWiFi();
     } else {
       wifiLastSuccess = false;
-      disconnectWiFi();
     }
       drawDashboard();
   }
@@ -439,7 +447,6 @@ void readBatteryLevel() {
 
 bool connectWiFi() {
   WiFi.persistent(false);
-
 
   for (int connectAttempt = 0; connectAttempt < 3; connectAttempt++) {
     WiFi.mode(WIFI_OFF);
