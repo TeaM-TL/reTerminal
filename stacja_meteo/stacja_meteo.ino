@@ -175,7 +175,7 @@ void setup()
   digitalWrite(BUZZER_PIN, LOW);
 
   pinMode(BATTERY_ENABLE_PIN, OUTPUT);
-  digitalWrite(BATTERY_ENABLE_PIN, HIGH);
+  digitalWrite(BATTERY_ENABLE_PIN, LOW);
 
   analogReadResolution(12);
   analogSetPinAttenuation(BATTERY_ADC_PIN, ADC_11db);
@@ -371,9 +371,11 @@ void readBatteryLevel() {
 
 bool connectWiFi() {
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(true);
+  esp_wifi_set_ps(WIFI_PS_MIN_MODEM); // powersave
   WiFi.begin(ssid, password);
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     attempts++;
   }
