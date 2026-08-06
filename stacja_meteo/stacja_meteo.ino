@@ -137,6 +137,8 @@ float internalTemp = 0.0;
 int internalHumidity = 0;
 bool sht4xValid = false;
 uint16_t sht4xLastError = 0;
+bool wifiLastSuccess = false;
+bool sensorReadLastSuccess = false;
 
 bool connectWiFi();
 void disconnectWiFi();
@@ -199,9 +201,12 @@ esp_log_level_set("*", ESP_LOG_NONE);
 
   // Pobranie danych przez Wi-Fi i natychmiastowe rozłączenie radia
   if (connectWiFi()) {
+    wifiLastSuccess = true;
     syncTimeNTP();
     updateWeatherFromAPI();
     disconnectWiFi();
+  } else {
+    wifiLastSuccess = false;
   }
 
   drawDashboard();
@@ -227,6 +232,7 @@ void loop()
     if (screenReading != currentScreenState) {
       currentScreenState = screenReading;
       if (screenReading == LOW) {
+        readInternalSensor();
         currentScreen = (currentScreen + 1) % 3;
         drawDashboard();
       }
@@ -294,11 +300,14 @@ void loop()
     lastWeatherMillis = currentMillis;
     readInternalSensor();
     if (connectWiFi()) {
+      wifiLastSuccess = true;
       syncTimeNTP();
       updateWeatherFromAPI();
       disconnectWiFi();
-      drawDashboard();
+    } else {
+      wifiLastSuccess = false;
     }
+      drawDashboard();
   }
   esp_sleep_enable_timer_wakeup(100000); // 100 ms
   esp_light_sleep_start();
@@ -339,6 +348,7 @@ void readInternalSensor() {
       internalTemp = temperature;
       internalHumidity = (int)(humidity + 0.5);
       sht4xValid = true;
+      sensorReadLastSuccess = true;
       return;
     }
     delay(20);
@@ -346,12 +356,19 @@ void readInternalSensor() {
 
   // Reinit after error
   sht4xLastError = error;
+
+  Wire.end();
+  delay(5);
+  Wire.begin(SHT4X_SDA_PIN, SHT4X_SCL_PIN);
+  Wire.setClock(100000);
   if (initSht4x()) {
     // initSht4x set temperature and humindity, ans valid=true
+    sensorReadLastSuccess = true;
     return;
   }
   sht4xValid = false;
-  Serial.printf("[SHT4x] read failed err=%u\n", error);
+  sensorReadLastSuccess = false;
+  // Serial.printf("[SHT4x] read failed err=%u\n", error);
 }
 
 void readBatteryLevel() {
@@ -426,10 +443,8 @@ void updateBuzzerAndBatteryStatusOnScreen() {
     
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&FreeSans9pt7b);
-    display.setCursor(35, 252);
-    display.print("Buzzer 15min:");
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(35, 277);
+    display.setCursor(35, 265);
+    display.print("Buzzer 15min: ");
     display.print(buzzerActive ? "Aktywny" : "Wylaczony");
 
     display.setFont(&FreeSans9pt7b);
@@ -697,13 +712,17 @@ void drawDashboard()
     display.setFont(&FreeSansBold12pt7b);
     display.setCursor(135, 205);
     display.print(intHumBuf);
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(35, 240);
+    display.print("WiFi: ");
+    display.print(wifiLastSuccess ? "OK" : "ERR");
+    display.print(" SHT4x: ");
+    display.print(sensorReadLastSuccess ? "OK" : "ERR");
 
     // Buzzer
     display.setFont(&FreeSans9pt7b);
-    display.setCursor(35, 252);
-    display.print("Buzzer 15min:");
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(35, 277);
+    display.setCursor(35, 265);
+    display.print("Buzzer 15min: ");
     display.print(buzzerActive ? "Aktywny" : "Wylaczony");
 
     // Bateria (Procenty + Napięcie bieżące / min / max)
