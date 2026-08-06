@@ -28,6 +28,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <time.h>
+#include <sys/time.h>
 #include <SensirionI2cSht4x.h>
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
@@ -50,6 +51,7 @@
 // Magistrala I2C dla wbudowanego czujnika SHT4x
 #define SHT4X_SDA_PIN 19
 #define SHT4X_SCL_PIN 20
+#define RTC_I2C_ADDR 0x51
 
 // ===== Peryferia =====
 const int BUZZER_PIN         = 45;   // Buzzer na GPIO45
@@ -145,6 +147,8 @@ bool ntpEverSynced = false;
 bool connectWiFi();
 void disconnectWiFi();
 bool syncTimeNTP();
+bool syncTimeFromRtc();
+bool updateRTCFromSystemTime();
 void updateWeatherFromAPI();
 bool initSht4x();
 void readInternalSensor();
@@ -155,6 +159,14 @@ void drawDashboard();
 void drawForecastScreen(const char* title, DailyForecast &forecast);
 void updateBuzzerAndBatteryStatusOnScreen();
 void updateClockAndDateOnScreen();
+
+uint8_t bcdToDec(uint8_t val) {
+  return ((val >> 4) * 10) + (val & 0x0F);
+}
+
+uint8_t decToBcd(uint8_t val) {
+  return ((val / 10) << 4) | (val % 10);
+}
 
 void setup()
 {
@@ -171,6 +183,10 @@ void setup()
 
   Wire.begin(SHT4X_SDA_PIN, SHT4X_SCL_PIN);
   Wire.setClock(100000);
+
+  // Sync time from RTC before Wi-Fi
+  syncTimeFromRtc();
+
   initSht4x();
   readInternalSensor();
 
@@ -207,6 +223,7 @@ esp_log_level_set("*", ESP_LOG_NONE);
     if (syncTimeNTP()) {
       ntpEverSynced = true;
       lastNtpSyncMillis = millis();
+      updateRTCFromSystemTime();
     }
     updateWeatherFromAPI();
     disconnectWiFi();
@@ -311,6 +328,7 @@ void loop()
         if (syncTimeNTP()) {
           ntpEverSynced = true;
           lastNtpSyncMillis = currentMillis;
+          updateRTCFromSystemTime();
         }
       }
       updateWeatherFromAPI();
@@ -427,6 +445,10 @@ bool connectWiFi() {
     return true;
   }
 
+
+  WiFi.disconnect(true, true);
+  WiFi.mode(WIFI_OFF);
+  return false;
 }
 
 void disconnectWiFi() {
@@ -495,7 +517,100 @@ bool syncTimeNTP() {
     minutes = timeinfo.tm_min;
     snprintf(lastSyncTimeStr, sizeof(lastSyncTimeStr), "%02d:%02d", hours, minutes);
     snprintf(currentDateStr, sizeof(currentDateStr), "%02d.%02d.%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+    return true;
   }
+  return false;
+}
+
+bool syncTimeFromRtc() {
+  Wire.beginTransmission(RTC_I2C_ADDR);
+  Wire.write((uint8_t)0x02); // sekundy do rejestru
+  if (Wire.endTransmission(false) != 0) {
+    return false;
+  }
+
+  if (Wire.requestFrom((int)RTC_I2C_ADDR, 7) != 7) {
+    return false;
+  }
+
+  uint8_t secReg = Wire.read();
+  uint8_t minReg = Wire.read();
+  uint8_t hourReg = Wire.read();
+  Wire.read(); //day of week - noy used
+  uint8_t dayReg = Wire.read();
+  uint8_t monthReg = Wire.read();
+  uint8_t yearReg = Wire.read();
+
+  if (secReg & 0x80) {
+    // VL=1: RTC has not accuracy time
+    return false;
+  }
+
+  int sec = bcdToDec(secReg & 0x7F);
+  int min = bcdToDec(minReg & 0x7F);
+  int hour = bcdToDec(hourReg & 0x3F);
+  int day = bcdToDec(dayReg & 0x3F);
+  int month = bcdToDec(monthReg & 0x1F);
+  int year = bcdToDec(yearReg) + ((monthReg & 0x80) ? 1900 : 2000);
+
+  if (sec > 59 || min > 59 || hour > 23 || day < 1 || day > 31 || month < 1 || month > 12) {
+    return false;
+  }
+
+  struct tm t = {0};
+  t.tm_sec = sec;
+  t.tm_min = min;
+  t.tm_hour = hour;
+  t.tm_mday = day;
+  t.tm_mon = month - 1;
+  t.tm_year = year - 1900;
+  t.tm_isdst = -1;
+
+  time_t epoch = mktime(&t);
+  if (epoch <= 0 ) {
+    return false;
+  }
+
+  struct timeval tv = {epoch, 0};
+  settimeofday(&tv, nullptr);
+
+  hours = t.tm_hour;
+  minutes = t.tm_min;
+  snprintf(lastSyncTimeStr, sizeof(lastSyncTimeStr), "%02d:%02d", hours, minutes);
+  snprintf(currentDateStr, sizeof(currentDateStr), "%02d.%02d.%02d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+  return true;
+}
+
+bool updateRTCFromSystemTime() {
+  struct tm now;
+  if (!getLocalTime(&now)) {
+    return false;
+  }
+
+  uint8_t sec = decToBcd((uint8_t)now.tm_sec);
+  uint8_t min = decToBcd((uint8_t)now.tm_min);
+  uint8_t hour = decToBcd((uint8_t)now.tm_hour);
+  uint8_t mday = decToBcd((uint8_t)now.tm_mday);
+  uint8_t wday = decToBcd((uint8_t)now.tm_wday);
+  int fullYear = now.tm_year + 1900;
+  uint8_t month = decToBcd((uint8_t)(now.tm_mon + 1));
+  uint8_t year = decToBcd((uint8_t)(fullYear % 100));
+
+  // PCF8563
+  if (fullYear < 2000) {
+    month |= 0x80;
+  }
+
+  Wire.beginTransmission(RTC_I2C_ADDR);
+  Wire.write((uint8_t)0x02);
+  Wire.write(sec & 0x7F);
+  Wire.write(min & 0x7F);
+  Wire.write(hour & 0x3F);
+  Wire.write(wday & 0x07);
+  Wire.write(mday & 0x3F);
+  Wire.write(month);
+  Wire.write(year);
+
 }
 
 void updateWeatherFromAPI() {
