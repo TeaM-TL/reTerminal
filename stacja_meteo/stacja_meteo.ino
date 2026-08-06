@@ -160,7 +160,7 @@ void drawForecastScreen(const char* title, DailyForecast &forecast);
 void updateBuzzerAndBatteryStatusOnScreen();
 void updateClockAndDateOnScreen();
 void onScreenButtonInterrupt();
-void onBuzzButtonInterrupt()
+void onBuzzButtonInterrupt();
 
 void onScreenButtonInterrupt {
   screenButtonInterrupt = true;
