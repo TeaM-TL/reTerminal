@@ -382,7 +382,8 @@ bool connectWiFi() {
   WiFi.begin(ssid, password);
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
+    esp_sleep_enable_timer_wakeup(500000);
+    esp_light_sleep_start();
     attempts++;
   }
   return (WiFi.status() == WL_CONNECTED);
